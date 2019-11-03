@@ -5,15 +5,19 @@ from gensim import models
 from numpy import zeros
 import numpy as np
 from keras.models import Sequential
-from keras.layers import Dense, SimpleRNN, Activation,TimeDistributed,InputLayer
+from keras.layers import Dense, SimpleRNN, Activation,TimeDistributed,InputLayer,Bidirectional
 from keras import optimizers
 from keras.optimizers import Adam
 from keras.layers import Embedding
+from keras import backend as K
 """
 Created on Sat Oct 26 17:28:47 2019
 
 @author: Pranav Krishna
 """
+
+
+
 def pad_tags(tags_list,max_len):
     #Pad the tags
     for i in range(0,len(tags_list)):
@@ -43,6 +47,7 @@ def openandread(path,sent_list,tag_list):
         sent=[]
         tag=[]
         tag_set=set([])
+        line_list=[]
         for line in f:
             content=line.split()
             if(line in ['\n', '\r\n']):
@@ -123,32 +128,77 @@ def vanilla_rnn(max_len,embedding_matrix):
     model.add(Activation('softmax'))
      
     model.compile(loss='categorical_crossentropy',
-                  optimizer=Adam(0.001),
+                  optimizer=Adam(0.0001),
                   metrics=['accuracy'])
+    print(model.summary())
+    return model
+
+
+def Bidirectional_rnn(max_len,embedding_matrix):
+    #Create vannila rnn model
+    model = Sequential()
+    model.add(InputLayer(input_shape=(max_len, )))
+    model.add(Embedding(len(vocab), 128))
+    model.add(Bidirectional(SimpleRNN(256, return_sequences=True)))
+    model.add(TimeDistributed(Dense(11)))
+    model.add(Activation('softmax'))
      
+    model.compile(loss='categorical_crossentropy',
+                  optimizer=Adam(0.0001),
+                  metrics=['accuracy'])
     print(model.summary())
     return model
 
 if __name__ == "__main__":
-    line_list=[]
-    tag_list=[]
-    line_list,tag_list,tag_set=openandread(r'D:\bin\AIT-726\Assignemnts\conll2003\train.txt',line_list,tag_list)
+    line_list_train=[]
+    tag_list_train=[]
+    line_list_train,tag_list_train,tag_set_train=openandread(r'D:\bin\AIT-726\Assignemnts\conll2003\train.txt',line_list_train,tag_list_train)
     
-    max_len = len(max(line_list, key=len))
+    line_list_valid=[]
+    tag_list_valid=[]
+    line_list_valid,tag_list_valid,tag_set_valid=openandread(r'D:\bin\AIT-726\Assignemnts\conll2003\valid.txt',line_list_valid,tag_list_valid)
     
-    line_vec,word2index=vectorize_line(line_list,vocab)
-    line_vec = pad_seq(line_vec,max_len)
+    line_list_test=[]
+    tag_list_test=[]
+    line_list_test,tag_list_test,tag_set_test=openandread(r'D:\bin\AIT-726\Assignemnts\conll2003\test.txt',line_list_test,tag_list_test)
+    
+    max_len_train = len(max(line_list_train, key=len))
+    line_vec_train,word2index=vectorize_line(line_list_train,vocab)
+    line_vec_train = pad_seq(line_vec_train,max_len_train)
+    
+    max_len_valid = len(max(line_list_valid, key=len))
+    line_vec_valid,word2index=vectorize_line(line_list_valid,vocab)
+    line_vec_valid = pad_seq(line_vec_valid,max_len_train)
+    
+    max_len_test = len(max(line_list_train, key=len))
+    line_vec_test,word2index=vectorize_line(line_list_test,vocab)
+    line_vec_test = pad_seq(line_vec_test,max_len_train)
     
     embedding_matrix=embed(word2index)
     
-    padded_tag = pad_tags(tag_list,max_len)
-    tag_set.add('<pad>')
-    tag_vec=vectorize_tag(tag_set,padded_tag)
+    padded_tag_train = pad_tags(tag_list_train,max_len_train)
+    tag_set_train.add('<pad>')
+    tag_vec_train=vectorize_tag(tag_set_train,padded_tag_train)
     
-    line_vec = pad_seq(line_vec,max_len)
+    padded_tag_valid = pad_tags(tag_list_valid,max_len_train)
+    tag_set_train.add('<pad>')
+    tag_vec_valid=vectorize_tag(tag_set_valid,padded_tag_valid)
     
-    tag_vec_one_hot = to_categorical(tag_vec,11)
+    padded_tag_test = pad_tags(tag_list_test,max_len_train)
+    tag_set_test.add('<pad>')
+    tag_vec_test=vectorize_tag(tag_set_train,padded_tag_test)
     
-    model=vanilla_rnn(max_len,embedding_matrix)
-    model.fit(line_vec, tag_vec_one_hot, batch_size=2000, epochs = 5, validation_split=0.2)
+    #line_vec_train = pad_seq(line_vec_train,max_len_train)
+    #line_vec_valid = pad_seq(line_vec_valid,max_len_valid)
+    #line_vec_test = pad_seq(line_vec_test,max_len_test)
     
+    tag_vec_one_hot_train = to_categorical(tag_vec_train,11)
+    tag_vec_one_hot_valid = to_categorical(tag_vec_valid,11)
+    tag_vec_one_hot_test = to_categorical(tag_vec_test,11)
+    
+    #model=vanilla_rnn(max_len_train,embedding_matrix)
+    #model.fit(line_vec_train, tag_vec_one_hot_train, batch_size=2000, epochs = 5,  validation_data=(line_vec_valid, tag_vec_one_hot_valid))
+    
+    
+    model=Bidirectional_rnn(max_len_train,embedding_matrix)
+    model.fit(line_vec_train, tag_vec_one_hot_train, batch_size=2000, epochs = 5,  validation_data=(line_vec_valid, tag_vec_one_hot_valid))
